@@ -7,20 +7,22 @@ use termion::{clear, color, cursor, input::TermRead, raw::IntoRawMode, screen::A
 
 struct Cursor {
     x: u16,
-    y: u16,
 }
 
 impl Cursor {
-    fn new(x: u16, y: u16) -> Self {
-        Self { x, y }
+    fn new(x: u16) -> Self {
+        Self { x }
     }
 }
 
-fn draw_names(text_input: &String) {
-    let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
+fn draw_names(names: &Vec<&str>, text_input: &String, matched_name_index: usize) {
     for (i, name) in names.iter().enumerate() {
         print!("{}", cursor::Goto(1, 3 + i as u16));
-        let mut name_line = String::from("- ");
+        let mut name_line = String::from(if i == matched_name_index {
+            format!("{}>{} ", color::Fg(color::Cyan), color::Fg(color::Reset))
+        } else {
+            format!("- ")
+        });
         if !text_input.is_empty() {
             for c in name.chars() {
                 if text_input.contains(c) {
@@ -55,6 +57,31 @@ fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
     cursor.x = 1 + (text_input_header.len() + text_input.len()) as u16;
 }
 
+fn update_scores(scores: &mut Vec<i32>, names: &Vec<&str>, text_input: &String) {
+    for (i, name) in names.iter().enumerate() {
+        scores[i] = scoring(name, text_input);
+    }
+}
+fn scoring(name: &str, input: &String) -> i32 {
+    // scoring logic
+    let length_diff = input.len().abs_diff(name.len()) as i32;
+    -length_diff
+}
+
+fn find_most_match_index(scores: &Vec<i32>) -> usize {
+    scores
+        .iter()
+        .enumerate()
+        .fold((usize::MIN, i32::MIN), |(ia, a), (ib, &b)| {
+            if b > a {
+                (ib, b)
+            } else {
+                (ia, a)
+            }
+        })
+        .0
+}
+
 fn main() {
     let stdin = stdin();
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
@@ -63,23 +90,30 @@ fn main() {
     print!("{}ffff (Ctrl-Q: Quit)", cursor::Goto(1, 1));
     let mut text_input = String::new();
 
-    let mut cursor = Cursor::new(1, 2);
+    let mut cursor = Cursor::new(1);
+
+    let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
+    let mut scores = vec![0; names.len()];
+
+    update_scores(&mut scores, &names, &text_input);
+    let mut matched_name_index: usize = find_most_match_index(&scores);
 
     draw_text_input(&mut cursor, &text_input);
-    draw_names(&text_input);
+    draw_names(&names, &text_input, matched_name_index);
+    print!("{}", cursor::Goto(cursor.x, 2));
 
     screen.flush().unwrap();
     for event in stdin.events() {
         match event.unwrap() {
             Event::Key(Key::Ctrl('q')) => break,
             Event::Key(Key::Down) | Event::Key(Key::Ctrl('n')) => {
-                if cursor.y < terminal_size.1 {
-                    cursor.y += 1;
+                if matched_name_index + 1 < names.len() {
+                    matched_name_index += 1;
                 }
             }
             Event::Key(Key::Up) | Event::Key(Key::Ctrl('p')) => {
-                if cursor.y > 1 {
-                    cursor.y -= 1;
+                if matched_name_index > 0 {
+                    matched_name_index -= 1;
                 }
             }
             Event::Key(Key::Right) | Event::Key(Key::Ctrl('l')) => {
@@ -89,17 +123,19 @@ fn main() {
             }
             Event::Key(Key::Backspace | Key::Ctrl('h')) => {
                 text_input.pop();
-                draw_text_input(&mut cursor, &text_input);
-                draw_names(&text_input);
+                update_scores(&mut scores, &names, &text_input);
+                matched_name_index = find_most_match_index(&scores);
             }
             Event::Key(Key::Char(c)) => {
                 text_input.push(c);
-                draw_text_input(&mut cursor, &text_input);
-                draw_names(&text_input);
+                update_scores(&mut scores, &names, &text_input);
+                matched_name_index = find_most_match_index(&scores);
             }
             _ => {}
         }
-        print!("{}", cursor::Goto(cursor.x, cursor.y));
+        draw_text_input(&mut cursor, &text_input);
+        draw_names(&names, &text_input, matched_name_index);
+        print!("{}", cursor::Goto(cursor.x, 2));
         screen.flush().unwrap();
     }
 }
