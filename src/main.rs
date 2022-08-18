@@ -16,6 +16,23 @@ impl Cursor {
     }
 }
 
+fn draw_names(text_input: &String) {
+    let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
+    for (i, name) in names.iter().enumerate() {
+        if !text_input.is_empty() && name.contains(text_input) {
+            print!(
+                "{}{}{}{}",
+                cursor::Goto(1, 3 + i as u16),
+                color::Fg(color::Yellow),
+                name,
+                color::Fg(color::Reset),
+            );
+        } else {
+            print!("{}{}", cursor::Goto(1, 3 + i as u16), name);
+        }
+    }
+}
+
 fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
     let text_input_header = "input: ";
     print!(
@@ -35,16 +52,14 @@ fn main() {
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let terminal_size = terminal_size().unwrap();
     print!("{}", clear::All);
+    print!("{}ffff (Ctrl-q: Quit)", cursor::Goto(1, 1));
     let mut text_input = String::new();
 
-    let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
-    for (i, name) in names.iter().enumerate() {
-        print!("{}{}", cursor::Goto(1, 3 + i as u16), name);
-    }
-    print!("{}ffff (Ctrl-q: Quit)", cursor::Goto(1, 1));
     let mut cursor = Cursor::new(1, 2);
 
     draw_text_input(&mut cursor, &text_input);
+    draw_names(&text_input);
+
     screen.flush().unwrap();
     for event in stdin.events() {
         match event.unwrap() {
@@ -67,10 +82,12 @@ fn main() {
             Event::Key(Key::Backspace | Key::Ctrl('h')) => {
                 text_input.pop();
                 draw_text_input(&mut cursor, &text_input);
+                draw_names(&text_input);
             }
             Event::Key(Key::Char(c)) => {
                 text_input.push(c);
                 draw_text_input(&mut cursor, &text_input);
+                draw_names(&text_input);
             }
             _ => {}
         }
