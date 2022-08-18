@@ -19,16 +19,22 @@ impl Cursor {
 fn draw_names(text_input: &String) {
     let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
     for (i, name) in names.iter().enumerate() {
-        if !text_input.is_empty() && name.contains(text_input) {
-            print!(
-                "{}{}{}{}",
-                cursor::Goto(1, 3 + i as u16),
-                color::Fg(color::Yellow),
-                name,
-                color::Fg(color::Reset),
-            );
+        print!("{}", cursor::Goto(1, 3 + i as u16));
+        if !text_input.is_empty() {
+            for c in name.chars() {
+                if text_input.contains(c) {
+                    print!(
+                        "{}{}{}",
+                        color::Fg(color::Yellow),
+                        c,
+                        color::Fg(color::Reset),
+                    )
+                } else {
+                    print!("{}", c);
+                }
+            }
         } else {
-            print!("{}{}", cursor::Goto(1, 3 + i as u16), name);
+            print!("{}", name);
         }
     }
 }
