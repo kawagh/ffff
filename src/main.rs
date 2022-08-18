@@ -20,22 +20,24 @@ fn draw_names(text_input: &String) {
     let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
     for (i, name) in names.iter().enumerate() {
         print!("{}", cursor::Goto(1, 3 + i as u16));
+        let mut name_line = String::from("- ");
         if !text_input.is_empty() {
             for c in name.chars() {
                 if text_input.contains(c) {
-                    print!(
+                    name_line.push_str(&format!(
                         "{}{}{}",
                         color::Fg(color::Yellow),
                         c,
                         color::Fg(color::Reset),
-                    )
+                    ));
                 } else {
-                    print!("{}", c);
+                    name_line.push(c);
                 }
             }
         } else {
-            print!("{}", name);
+            name_line.push_str(name);
         }
+        print!("{}", name_line)
     }
 }
 
