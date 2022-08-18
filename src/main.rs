@@ -15,14 +15,15 @@ impl Cursor {
     }
 }
 
-fn draw_names(names: &Vec<&str>, text_input: &String, matched_name_index: usize) {
+#[allow(clippy::format_push_string)]
+fn draw_names(names: &[&str], text_input: &String, matched_name_index: usize) {
     for (i, name) in names.iter().enumerate() {
         print!("{}", cursor::Goto(1, 3 + i as u16));
-        let mut name_line = String::from(if i == matched_name_index {
+        let mut name_line = if i == matched_name_index {
             format!("{}>{} ", color::Fg(color::Cyan), color::Fg(color::Reset))
         } else {
-            format!("- ")
-        });
+            ("- ").to_string()
+        };
         if !text_input.is_empty() {
             for c in name.chars() {
                 if text_input.contains(c) {
@@ -57,7 +58,7 @@ fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
     cursor.x = 1 + (text_input_header.len() + text_input.len()) as u16;
 }
 
-fn update_scores(scores: &mut Vec<i32>, names: &Vec<&str>, text_input: &String) {
+fn update_scores(scores: &mut [i32], names: &[&str], text_input: &String) {
     for (i, name) in names.iter().enumerate() {
         scores[i] = scoring(name, text_input);
     }
@@ -68,7 +69,7 @@ fn scoring(name: &str, input: &String) -> i32 {
     -length_diff
 }
 
-fn find_most_match_index(scores: &Vec<i32>) -> usize {
+fn find_most_match_index(scores: &[i32]) -> usize {
     scores
         .iter()
         .enumerate()
