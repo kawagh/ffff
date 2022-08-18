@@ -58,7 +58,7 @@ fn main() {
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let terminal_size = terminal_size().unwrap();
     print!("{}", clear::All);
-    print!("{}ffff (Ctrl-q: Quit)", cursor::Goto(1, 1));
+    print!("{}ffff (Ctrl-Q: Quit)", cursor::Goto(1, 1));
     let mut text_input = String::new();
 
     let mut cursor = Cursor::new(1, 2);
