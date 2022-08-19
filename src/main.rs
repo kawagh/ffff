@@ -92,6 +92,7 @@ fn main() {
     let mut text_input = String::new();
 
     let mut cursor = Cursor::new(1);
+    let mut selected = false;
 
     let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
     let mut scores = vec![0; names.len()];
@@ -107,6 +108,10 @@ fn main() {
     for event in stdin.events() {
         match event.unwrap() {
             Event::Key(Key::Ctrl('q')) => break,
+            Event::Key(Key::Char('\n')) => {
+                selected = true;
+                break;
+            }
             Event::Key(Key::Down) | Event::Key(Key::Ctrl('n')) => {
                 if matched_name_index + 1 < names.len() {
                     matched_name_index += 1;
@@ -138,5 +143,10 @@ fn main() {
         draw_names(&names, &text_input, matched_name_index);
         print!("{}", cursor::Goto(cursor.x, 2));
         screen.flush().unwrap();
+    }
+
+    drop(screen);
+    if selected {
+        println!("{}", names[matched_name_index]);
     }
 }
