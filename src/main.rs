@@ -1,5 +1,8 @@
 extern crate termion;
 use atty::Stream;
+use clap::Parser;
+use std::fs;
+
 use std::io::{stdin, stdout, BufRead, Write};
 use termion::event::{Event, Key};
 
@@ -14,6 +17,12 @@ impl Cursor {
     fn new(x: u16) -> Self {
         Self { x }
     }
+}
+
+#[derive(Parser)]
+struct Args {
+    #[clap(short, long, value_parser)]
+    file: Option<String>,
 }
 
 #[allow(clippy::format_push_string)]
@@ -83,7 +92,7 @@ fn find_most_match_index(scores: &[i32]) -> usize {
         })
         .0
 }
-fn get_names() -> Vec<String> {
+fn get_names_from_stdin_or_pipe() -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     let mut stdin_locked = stdin().lock();
     let mut line = String::new();
@@ -107,8 +116,19 @@ fn get_names() -> Vec<String> {
         names
     }
 }
+
 fn main() {
-    let names = get_names();
+    let args = Args::parse();
+    let names: Vec<String> = if let Some(file_path) = args.file {
+        let content = fs::read_to_string(file_path).expect("could not read file");
+        content
+            .lines()
+            .take(20)
+            .map(|line| line.to_string())
+            .collect()
+    } else {
+        get_names_from_stdin_or_pipe()
+    };
     let mut scores = vec![0; names.len()];
 
     let stdin = stdin();
