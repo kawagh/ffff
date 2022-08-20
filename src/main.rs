@@ -1,5 +1,6 @@
 extern crate termion;
-use std::io::{stdin, stdout, Write};
+use atty::Stream;
+use std::io::{stdin, stdout, BufRead, Write};
 use termion::event::{Event, Key};
 
 use termion::terminal_size;
@@ -16,7 +17,7 @@ impl Cursor {
 }
 
 #[allow(clippy::format_push_string)]
-fn draw_names(names: &[&str], text_input: &String, matched_name_index: usize) {
+fn draw_names(names: &Vec<String>, text_input: &String, matched_name_index: usize) {
     for (i, name) in names.iter().enumerate() {
         print!("{}", cursor::Goto(1, 3 + i as u16));
         let mut name_line = if i == matched_name_index {
@@ -58,7 +59,7 @@ fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
     cursor.x = 1 + (text_input_header.len() + text_input.len()) as u16;
 }
 
-fn update_scores(scores: &mut [i32], names: &[&str], text_input: &String) {
+fn update_scores(scores: &mut [i32], names: &Vec<String>, text_input: &String) {
     for (i, name) in names.iter().enumerate() {
         scores[i] = scoring(name, text_input);
     }
@@ -82,8 +83,34 @@ fn find_most_match_index(scores: &[i32]) -> usize {
         })
         .0
 }
-
+fn get_names() -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let mut stdin_locked = stdin().lock();
+    let mut line = String::new();
+    while let Ok(n_byte) = BufRead::read_line(&mut stdin_locked, &mut line) {
+        if n_byte == 0 {
+            eprintln!("debug: 0byte");
+            break;
+        }
+        if line == String::from("\n") {
+            eprintln!("debug: return");
+            break;
+        }
+        names.push(line.clone());
+        line.clear();
+    }
+    if atty::is(Stream::Stdin) {
+        names.push("from stdin\n".to_string());
+        names
+    } else {
+        names.push("from redirect\n".to_string());
+        names
+    }
+}
 fn main() {
+    let names = get_names();
+    let mut scores = vec![0; names.len()];
+
     let stdin = stdin();
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let terminal_size = terminal_size().unwrap();
@@ -94,9 +121,6 @@ fn main() {
     let mut cursor = Cursor::new(1);
     let mut selected = false;
 
-    let names = vec!["Alice", "Bob", "Carorl", "Dave", "Eve", "Frank"];
-    let mut scores = vec![0; names.len()];
-
     update_scores(&mut scores, &names, &text_input);
     let mut matched_name_index: usize = find_most_match_index(&scores);
 
@@ -106,6 +130,7 @@ fn main() {
 
     screen.flush().unwrap();
     for event in stdin.events() {
+        eprintln!("inside event loop");
         match event.unwrap() {
             Event::Key(Key::Ctrl('q')) => break,
             Event::Key(Key::Char('\n')) => {
