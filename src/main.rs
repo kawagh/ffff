@@ -30,7 +30,12 @@ fn draw_names(names: &Vec<String>, text_input: &String, matched_name_index: usiz
     for (i, name) in names.iter().enumerate() {
         print!("{}", cursor::Goto(1, 3 + i as u16));
         let mut name_line = if i == matched_name_index {
-            format!("{}>{} ", color::Fg(color::Cyan), color::Fg(color::Reset))
+            format!(
+                "{}>{} {}",
+                color::Fg(color::Cyan),
+                color::Fg(color::Reset),
+                color::Bg(color::LightBlue),
+            )
         } else {
             ("- ").to_string()
         };
@@ -50,6 +55,7 @@ fn draw_names(names: &Vec<String>, text_input: &String, matched_name_index: usiz
         } else {
             name_line.push_str(name);
         }
+        name_line.push_str(&format!("{}", color::Bg(color::Reset)));
         print!("{}", name_line)
     }
 }
