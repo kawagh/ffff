@@ -26,7 +26,7 @@ struct Args {
 }
 
 #[allow(clippy::format_push_string)]
-fn draw_names(names: &Vec<String>, text_input: &String, matched_name_index: usize) {
+fn draw_names(names: &[String], text_input: &String, matched_name_index: usize) {
     for (i, name) in names.iter().enumerate() {
         print!("{}", cursor::Goto(1, 3 + i as u16));
         let mut name_line = if i == matched_name_index {
@@ -74,7 +74,7 @@ fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
     cursor.x = 1 + (text_input_header.len() + text_input.len()) as u16;
 }
 
-fn update_scores(scores: &mut [i32], names: &Vec<String>, text_input: &String) {
+fn update_scores(scores: &mut [i32], names: &[String], text_input: &String) {
     for (i, name) in names.iter().enumerate() {
         scores[i] = scoring(name, text_input);
     }
@@ -107,7 +107,7 @@ fn get_names_from_stdin_or_pipe() -> Vec<String> {
             eprintln!("debug: 0byte");
             break;
         }
-        if line == String::from("\n") {
+        if line == *"\n" {
             eprintln!("debug: return");
             break;
         }
