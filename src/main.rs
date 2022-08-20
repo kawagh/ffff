@@ -1,3 +1,4 @@
+mod scoring;
 extern crate termion;
 use atty::Stream;
 use clap::Parser;
@@ -74,17 +75,6 @@ fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
     cursor.x = 1 + (text_input_header.len() + text_input.len()) as u16;
 }
 
-fn update_scores(scores: &mut [i32], names: &[String], text_input: &String) {
-    for (i, name) in names.iter().enumerate() {
-        scores[i] = scoring(name, text_input);
-    }
-}
-fn scoring(name: &str, input: &String) -> i32 {
-    // scoring logic
-    let length_diff = input.len().abs_diff(name.len()) as i32;
-    -length_diff
-}
-
 fn find_most_match_index(scores: &[i32]) -> usize {
     scores
         .iter()
@@ -147,7 +137,7 @@ fn main() {
     let mut cursor = Cursor::new(1);
     let mut selected = false;
 
-    update_scores(&mut scores, &names, &text_input);
+    scoring::update_scores(&mut scores, &names, &text_input);
     let mut matched_name_index: usize = find_most_match_index(&scores);
 
     draw_text_input(&mut cursor, &text_input);
@@ -180,12 +170,12 @@ fn main() {
             }
             Event::Key(Key::Backspace | Key::Ctrl('h')) => {
                 text_input.pop();
-                update_scores(&mut scores, &names, &text_input);
+                scoring::update_scores(&mut scores, &names, &text_input);
                 matched_name_index = find_most_match_index(&scores);
             }
             Event::Key(Key::Char(c)) => {
                 text_input.push(c);
-                update_scores(&mut scores, &names, &text_input);
+                scoring::update_scores(&mut scores, &names, &text_input);
                 matched_name_index = find_most_match_index(&scores);
             }
             _ => {}
