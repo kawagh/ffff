@@ -2,23 +2,16 @@ mod scoring;
 extern crate termion;
 use atty::Stream;
 use clap::Parser;
+
+use crossterm::cursor::MoveTo;
+use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
+use crossterm::style::Print;
+use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::{execute, ExecutableCommand};
 use std::fs;
 
-use std::io::{stdin, stdout, BufRead, Write};
-use termion::event::{Event, Key};
-
-use termion::terminal_size;
-use termion::{clear, color, cursor, input::TermRead, raw::IntoRawMode, screen::AlternateScreen};
-
-struct Cursor {
-    x: u16,
-}
-
-impl Cursor {
-    fn new(x: u16) -> Self {
-        Self { x }
-    }
-}
+use std::io::{stdin, stdout, BufRead};
+use std::time::Duration;
 
 #[derive(Parser)]
 struct Args {
@@ -26,53 +19,23 @@ struct Args {
     file: Option<String>,
 }
 
-#[allow(clippy::format_push_string)]
-fn draw_names(names: &[String], text_input: &String, matched_name_index: usize) {
+fn draw_names_crossterm(
+    names: &[String],
+    text_input: &String,
+    matched_name_index: usize,
+) -> crossterm::Result<()> {
+    // TODO highlight matched part
     for (i, name) in names.iter().enumerate() {
-        print!("{}", cursor::Goto(1, 3 + i as u16));
-        let mut name_line = if i == matched_name_index {
-            format!(
-                "{}>{} {}",
-                color::Fg(color::Cyan),
-                color::Fg(color::Reset),
-                color::Bg(color::LightBlue),
-            )
+        let line = if i == matched_name_index {
+            format!("> {}{}", name, text_input)
         } else {
-            ("- ").to_string()
+            format!("- {}", name)
         };
-        if !text_input.is_empty() {
-            for c in name.chars() {
-                if text_input.contains(c) {
-                    name_line.push_str(&format!(
-                        "{}{}{}",
-                        color::Fg(color::Yellow),
-                        c,
-                        color::Fg(color::Reset),
-                    ));
-                } else {
-                    name_line.push(c);
-                }
-            }
-        } else {
-            name_line.push_str(name);
-        }
-        name_line.push_str(&format!("{}", color::Bg(color::Reset)));
-        print!("{}", name_line)
+        stdout()
+            .execute(MoveTo(0, 2 + i as u16))?
+            .execute(Print(line))?;
     }
-}
-
-fn draw_text_input(cursor: &mut Cursor, text_input: &String) {
-    let text_input_header = "input: ";
-    print!(
-        "{}{}{}{}{}{}",
-        cursor::Goto(1, 2),
-        clear::CurrentLine,
-        color::Fg(color::Cyan),
-        text_input_header,
-        color::Fg(color::Reset),
-        text_input,
-    );
-    cursor.x = 1 + (text_input_header.len() + text_input.len()) as u16;
+    Ok(())
 }
 
 fn find_most_match_index(scores: &[i32]) -> usize {
@@ -97,23 +60,22 @@ fn get_names_from_stdin_or_pipe() -> Vec<String> {
             eprintln!("debug: 0byte");
             break;
         }
-        if line == *"\n" {
-            eprintln!("debug: return");
-            break;
-        }
+        // if line == *"\n" {
+        //     eprintln!("debug: return");
+        //     break;
+        // }
         names.push(line.clone());
         line.clear();
     }
     if atty::is(Stream::Stdin) {
         names.push("from stdin\n".to_string());
-        names
     } else {
         names.push("from redirect\n".to_string());
-        names
     }
+    names[..20].to_vec()
 }
 
-fn main() {
+fn main() -> crossterm::Result<()> {
     let args = Args::parse();
     let names: Vec<String> = if let Some(file_path) = args.file {
         let content = fs::read_to_string(file_path).expect("could not read file");
@@ -126,68 +88,81 @@ fn main() {
         get_names_from_stdin_or_pipe()
     };
     let mut scores = vec![0; names.len()];
-
-    let stdin = stdin();
-    let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
-    let terminal_size = terminal_size().unwrap();
-    print!("{}", clear::All);
-    print!("{}ffff (Ctrl-Q: Quit)", cursor::Goto(1, 1));
     let mut text_input = String::new();
-
-    let mut cursor = Cursor::new(1);
     let mut selected = false;
-
     scoring::update_scores(&mut scores, &names, &text_input);
     let mut matched_name_index: usize = find_most_match_index(&scores);
 
-    draw_text_input(&mut cursor, &text_input);
-    draw_names(&names, &text_input, matched_name_index);
-    print!("{}", cursor::Goto(cursor.x, 2));
+    terminal::enable_raw_mode()?;
+    execute!(stdout(), EnterAlternateScreen)?;
 
-    screen.flush().unwrap();
-    for event in stdin.events() {
-        eprintln!("inside event loop");
-        match event.unwrap() {
-            Event::Key(Key::Ctrl('q')) => break,
-            Event::Key(Key::Char('\n')) => {
-                selected = true;
-                break;
+    //  main loop
+    loop {
+        let input_line = format!("input: {}", text_input);
+        execute!(
+            stdout(),
+            Clear(ClearType::All),
+            MoveTo(0, 0),
+            Print(&input_line),
+            MoveTo(0, 1),
+            Print(format!("debug: {}", matched_name_index)),
+        )?;
+
+        draw_names_crossterm(&names, &text_input, matched_name_index)?;
+
+        // move cursor to textInput
+        stdout().execute(MoveTo(input_line.len() as u16, 0))?;
+
+        // handle events
+        // `poll()` waits for an `Event` for a given time period
+        if poll(Duration::from_millis(500))? {
+            // It's guaranteed that the `read()` won't block when the `poll()`
+            // function returns `true`
+            match read()? {
+                Event::Key(event) => match (event.code, event.modifiers) {
+                    (KeyCode::Esc, _) => {
+                        break;
+                    }
+                    (KeyCode::Up, _) | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
+                        if matched_name_index > 0 {
+                            matched_name_index -= 1;
+                        }
+                    }
+                    (KeyCode::Down, _) | (KeyCode::Char('n'), KeyModifiers::CONTROL) => {
+                        if matched_name_index + 1 < names.len() {
+                            matched_name_index += 1;
+                        }
+                    }
+
+                    (KeyCode::Enter, _) => {
+                        selected = true;
+                        break;
+                    }
+
+                    (KeyCode::Backspace, _) | (KeyCode::Char('h'), KeyModifiers::CONTROL) => {
+                        text_input.pop();
+                        scoring::update_scores(&mut scores, &names, &text_input);
+                        matched_name_index = find_most_match_index(&scores);
+                    }
+                    (KeyCode::Char(c), _) => {
+                        text_input.push(c);
+                        scoring::update_scores(&mut scores, &names, &text_input);
+                        matched_name_index = find_most_match_index(&scores);
+                    }
+
+                    (_, _) => {}
+                },
+                _ => {}
             }
-            Event::Key(Key::Down) | Event::Key(Key::Ctrl('n')) => {
-                if matched_name_index + 1 < names.len() {
-                    matched_name_index += 1;
-                }
-            }
-            Event::Key(Key::Up) | Event::Key(Key::Ctrl('p')) => {
-                if matched_name_index > 0 {
-                    matched_name_index -= 1;
-                }
-            }
-            Event::Key(Key::Right) | Event::Key(Key::Ctrl('l')) => {
-                if cursor.x < terminal_size.0 {
-                    cursor.x += 1;
-                }
-            }
-            Event::Key(Key::Backspace | Key::Ctrl('h')) => {
-                text_input.pop();
-                scoring::update_scores(&mut scores, &names, &text_input);
-                matched_name_index = find_most_match_index(&scores);
-            }
-            Event::Key(Key::Char(c)) => {
-                text_input.push(c);
-                scoring::update_scores(&mut scores, &names, &text_input);
-                matched_name_index = find_most_match_index(&scores);
-            }
-            _ => {}
+        } else {
+            // Timeout expired and no `Event` is available
         }
-        draw_text_input(&mut cursor, &text_input);
-        draw_names(&names, &text_input, matched_name_index);
-        print!("{}", cursor::Goto(cursor.x, 2));
-        screen.flush().unwrap();
     }
 
-    drop(screen);
+    execute!(stdout(), LeaveAlternateScreen)?;
+    terminal::disable_raw_mode()?;
     if selected {
         println!("{}", names[matched_name_index]);
     }
+    Ok(())
 }
