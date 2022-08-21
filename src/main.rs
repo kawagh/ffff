@@ -1,5 +1,4 @@
 mod scoring;
-extern crate termion;
 use atty::Stream;
 use clap::Parser;
 
