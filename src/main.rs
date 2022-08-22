@@ -4,7 +4,7 @@ use clap::Parser;
 
 use crossterm::cursor::MoveTo;
 use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
-use crossterm::style::Print;
+use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, ExecutableCommand};
 use std::fs;
@@ -18,21 +18,41 @@ struct Args {
     file: Option<String>,
 }
 
-fn draw_names_crossterm(
+fn draw_names(
     names: &[String],
     text_input: &String,
     matched_name_index: usize,
 ) -> crossterm::Result<()> {
-    // TODO highlight matched part
     for (i, name) in names.iter().enumerate() {
-        let line = if i == matched_name_index {
-            format!("> {}{}", name, text_input)
+        stdout().execute(MoveTo(0, 2 + i as u16))?;
+        if i == matched_name_index {
+            execute!(
+                stdout(),
+                SetBackgroundColor(Color::DarkGrey),
+                Print("> ".to_string()),
+            )?;
+            draw_name(name, text_input)?;
+            execute!(stdout(), ResetColor)?;
         } else {
-            format!("- {}", name)
-        };
-        stdout()
-            .execute(MoveTo(0, 2 + i as u16))?
-            .execute(Print(line))?;
+            execute!(stdout(), Print("- ".to_string()))?;
+            draw_name(name, text_input)?;
+        }
+    }
+    Ok(())
+}
+
+fn draw_name(name: &String, text_input: &String) -> crossterm::Result<()> {
+    for c in name.chars() {
+        if text_input.contains(c) {
+            execute!(
+                stdout(),
+                SetForegroundColor(Color::Yellow),
+                Print(c),
+                SetForegroundColor(Color::White),
+            )?;
+        } else {
+            execute!(stdout(), Print(c),)?;
+        }
     }
     Ok(())
 }
@@ -107,7 +127,7 @@ fn main() -> crossterm::Result<()> {
             Print(format!("debug: {}", matched_name_index)),
         )?;
 
-        draw_names_crossterm(&names, &text_input, matched_name_index)?;
+        draw_names(&names, &text_input, matched_name_index)?;
 
         // move cursor to textInput
         stdout().execute(MoveTo(input_line.len() as u16, 0))?;
