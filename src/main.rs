@@ -7,7 +7,7 @@ use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
 use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, ExecutableCommand};
-use std::fs;
+use std::fs::{self, ReadDir};
 
 use std::io::{stdin, stdout, BufRead};
 use std::time::Duration;
@@ -70,7 +70,7 @@ fn find_most_match_index(scores: &[i32]) -> usize {
         })
         .0
 }
-fn get_names_from_stdin_or_pipe() -> Vec<String> {
+fn get_names_from_pipe() -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     let mut stdin_locked = stdin().lock();
     let mut line = String::new();
@@ -79,19 +79,17 @@ fn get_names_from_stdin_or_pipe() -> Vec<String> {
             eprintln!("debug: 0byte");
             break;
         }
-        // if line == *"\n" {
-        //     eprintln!("debug: return");
-        //     break;
-        // }
         names.push(line.clone());
         line.clear();
     }
-    if atty::is(Stream::Stdin) {
-        names.push("from stdin\n".to_string());
-    } else {
-        names.push("from redirect\n".to_string());
-    }
     names[..20].to_vec()
+}
+
+fn get_paths_in_current_directory() -> Vec<String> {
+    let paths: ReadDir = fs::read_dir("./").expect("could not read directory");
+    paths
+        .map(|p| p.unwrap().path().display().to_string())
+        .collect()
 }
 
 fn main() -> crossterm::Result<()> {
@@ -103,8 +101,10 @@ fn main() -> crossterm::Result<()> {
             .take(20)
             .map(|line| line.to_string())
             .collect()
+    } else if !atty::is(Stream::Stdin) {
+        get_names_from_pipe()
     } else {
-        get_names_from_stdin_or_pipe()
+        get_paths_in_current_directory()
     };
     let mut scores = vec![0; names.len()];
     let mut text_input = String::new();
